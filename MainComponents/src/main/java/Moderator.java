@@ -1,6 +1,5 @@
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Verticle;
-import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.impl.JavaVerticleFactory;
@@ -23,10 +22,10 @@ public class Moderator extends AbstractVerticle {
 
     public void start()
     {
-       setPeriodicSendMessageToClan();
+       setPeriodicForMessageToClan();
     }
 
-    private void createMS()
+    private void createMSForExitAndReceiveUsers()
     {
         _ms = vertx.eventBus().consumer(_clan, event -> {
                     if (ThreadLocalRandom.current().nextBoolean() ) {
@@ -46,23 +45,23 @@ public class Moderator extends AbstractVerticle {
         _msExit = vertx.eventBus().consumer(_clan + "Exit", event->{
             _ms.pause();
             _msExit.pause();
-            setPeriodicSendMessageToClan();
+            setPeriodicForMessageToClan();
         });
     }
 
-    private void setPeriodicSendMessageToClan()
+    private void setPeriodicForMessageToClan()
     {
         _timerId = vertx.setPeriodic(5000, timer ->
                 {
                     if(_clan == null)
                         vertx.<String>executeBlocking(promise -> promise.complete(
-                                listenerClans("clans")), res ->sendToClan(res.result()
+                                randomChooseClan("clans")), res -> messageToClan(res.result()
                         ));
                 }
         );
     }
 
-    private boolean sendToClan(String clan)
+    private boolean messageToClan(String clan)
     {
         if(clan == null )
             return false;
@@ -72,7 +71,7 @@ public class Moderator extends AbstractVerticle {
             if (reply.succeeded()) {
                 _clan = clan;
                 vertx.cancelTimer(_timerId);
-                createMS();
+                createMSForExitAndReceiveUsers();
                 //System.out.println(reply.result().body().toString());
                 _max = Integer.parseInt(reply.result().body().toString());
                 System.out.println(_name + " was accepted in " + clan);
@@ -81,12 +80,11 @@ public class Moderator extends AbstractVerticle {
         return _clan == null ? false : true;
     }
 
-    public String listenerClans(String mapName){
+    public String randomChooseClan(String mapName){
         vertx.sharedData().getAsyncMap(mapName, map ->
                 map.result().entries(item -> {
                     item.result().forEach((name, nameClan) ->{
                                 if (ThreadLocalRandom.current().nextBoolean()){
-
                                     _tempString = (String) name;
                                     if(_tempString != null)
                                         return;

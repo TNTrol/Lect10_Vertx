@@ -1,7 +1,5 @@
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
-import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.impl.JavaVerticleFactory;
@@ -30,42 +28,41 @@ public class User extends AbstractVerticle {
                 }
         );
 
-        setPeriodicSendMessageToClan();
+        setPeriodicForMessageToClan();
     }
 
-    private void setPeriodicSendMessageToClan()
+    private void setPeriodicForMessageToClan()
     {
         _timerId = vertx.setPeriodic(5000, timer ->
                 {
-
                     if(_clan == null)
                         vertx.<String>executeBlocking(promise -> promise.complete(
-                                listenerClans("clans")), res ->sendToClan(res.result()
+                                randomChooseReceiver("clans")), res -> messageToClan(res.result()
                         ));
                 }
         );
     }
 
-    private void createMS()
+    private void createHandlerForExit()
     {
         _ms = vertx.eventBus().consumer(_clan + "Exit", event -> {
-            setPeriodicSendMessageToClan();
+            setPeriodicForMessageToClan();
             _ms.pause();
         });
     }
 
-    private void setPeriodicSendMessageToUsers()
+    private void setPeriodicForMessageToUsers()
     {
         _timerId = vertx.setPeriodic(5000, timer ->
                 {
                     sayAlive();
-                    vertx.<String>executeBlocking(promise -> promise.complete(listenerClans(_clan + "Friends")), res ->sendMessage(res.result()
+                    vertx.<String>executeBlocking(promise -> promise.complete(randomChooseReceiver(_clan + "Friends")), res -> messageToUser(res.result()
                     ));
                 }
         );
     }
 
-    public String listenerClans(String mapName){
+    public String randomChooseReceiver(String mapName){
         vertx.sharedData().getAsyncMap(mapName, map ->
                 map.result().entries(item -> {
                     item.result().forEach((name, nameClan) ->{
@@ -82,7 +79,7 @@ public class User extends AbstractVerticle {
         return _tempString;
     }
 
-    private boolean sendToClan(String clan)
+    private boolean messageToClan(String clan)
     {
         if(clan == null )
             return false;
@@ -92,14 +89,14 @@ public class User extends AbstractVerticle {
             if (reply.succeeded()) {
                 _clan = clan;
                 vertx.cancelTimer(_timerId);
-                setPeriodicSendMessageToUsers();
-                createMS();
+                setPeriodicForMessageToUsers();
+                createHandlerForExit();
             }
         });
         return _clan == null ? false : true;
     }
 
-    private boolean sendMessage(String to){
+    private boolean messageToUser(String to){
         if(to == null || to.equals(_name))
             return false;
         final String[] res = new String[1];
