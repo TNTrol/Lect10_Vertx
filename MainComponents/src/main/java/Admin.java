@@ -1,4 +1,6 @@
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Verticle;
+import io.vertx.core.impl.JavaVerticleFactory;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -8,9 +10,9 @@ public class Admin extends AbstractVerticle {
     private int _maxCountModerator;
     private int _maxCountUsers;
 
-    public Admin(String clan, int n, int maxCountModerator, int maxCountUsers)
+    public Admin(int n, int maxCountModerator, int maxCountUsers)
     {
-        _clan = clan;
+        _clan = "Clan" + n;
         _name = "Admin" + n;
         _maxCountModerator = maxCountModerator;
         _maxCountUsers = maxCountUsers;
@@ -35,7 +37,7 @@ public class Admin extends AbstractVerticle {
                         counter.result().get(number ->{
                             if(number.result() < _maxCountModerator)
                             {
-                                event.reply("You are our moderator");
+                                event.reply(_maxCountUsers + "");
                                 counter.result().getAndIncrement(number2 ->{});
                             }
                         });
@@ -46,38 +48,40 @@ public class Admin extends AbstractVerticle {
 
     }
 
-    public void sendMessage()
+    public void sendMessageExit()
     {
-        vertx.eventBus().publish(_clan + "Information", null);
+        System.out.println(_clan + " : all Hana , buy");
+        vertx.eventBus().publish(_clan + "Exit", null);
     }
 
     private void checkCountMembers()
     {
-//        boolean[] check = new boolean[1];
-//        vertx.sharedData().getCounter(_clan + "Moderators", counter -> {
-//            if(counter.succeeded())
-//            {
-//                counter.result().get(number ->{
-//                    if(number.result() > _maxCountModerator)
-//                    {
-//                        check[0] = true;
-//                        sendMessage();
-//                    }
-//                });
-//            }
-//        });
-//        if(check[0])
-//            return;
         vertx.sharedData().getCounter(_clan + "CountUser", counter -> {
             if(counter.succeeded())
             {
                 counter.result().get(number ->{
                     if(number.result() > _maxCountUsers)
                     {
-                        sendMessage();
+                        System.out.print(number.result());
+                        sendMessageExit();
                     }
                 });
             }
         });
+    }
+
+    public static final class AdminFactory extends JavaVerticleFactory {
+        private int number;
+
+        @Override
+        public String prefix() {
+            return "sphere";
+        }
+
+        @SuppressWarnings("ProhibitedExceptionDeclared")
+        @Override
+        public Verticle createVerticle(String verticleName, ClassLoader classLoader) {
+            return new Admin(number++, 10,10);
+        }
     }
 }

@@ -1,7 +1,9 @@
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
+import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.impl.JavaVerticleFactory;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -11,33 +13,23 @@ public class User extends AbstractVerticle {
     private String _clan;
     private long _timerId;
     private long _timeIdAlive;
+    private MessageConsumer _ms;
+    private String _tempString;
 
-    private User(int n)
+    public User(int n)
     {
         _name = "User" + n;
+
     }
 
     @Override
     public void start() {
-
         vertx.eventBus().consumer(_name, event -> {
                         event.reply("Thanks!");
                         //System.out.println(event.body());
                 }
         );
 
-//        _timerId = vertx.setPeriodic(5000, timer ->
-//                {
-//                    vertx.executeBlocking(event -> {if(_clan == null) {
-//                        listenerClans();
-//                    }
-//                    else {
-//                        sayAlive();
-//                        listenerUsers();
-//                    }}, event -> {});
-//
-//                }
-//        );
         setPeriodicSendMessageToClan();
     }
 
@@ -45,24 +37,49 @@ public class User extends AbstractVerticle {
     {
         _timerId = vertx.setPeriodic(5000, timer ->
                 {
+
                     if(_clan == null)
-                        vertx.<String>executeBlocking(promise -> promise.complete(listenerClans("clans")), res ->sendToClan(res.result()));
+                        vertx.<String>executeBlocking(promise -> promise.complete(
+                                listenerClans("clans")), res ->sendToClan(res.result()
+                        ));
                 }
         );
     }
+
+    private void createMS()
+    {
+        _ms = vertx.eventBus().consumer(_clan + "Exit", event -> {
+            setPeriodicSendMessageToClan();
+            _ms.pause();
+        });
+    }
+
     private void setPeriodicSendMessageToUsers()
     {
         _timerId = vertx.setPeriodic(5000, timer ->
                 {
-                    //sayAlive();
-                    vertx.<String>executeBlocking(promise -> promise.complete(listenerClans(_clan + "Friends")), res ->sendMessage(res.result()));
-                }
-        );
-        _timeIdAlive = vertx.setPeriodic(2500, timer ->
-                {
                     sayAlive();
+                    vertx.<String>executeBlocking(promise -> promise.complete(listenerClans(_clan + "Friends")), res ->sendMessage(res.result()
+                    ));
                 }
         );
+    }
+
+    public String listenerClans(String mapName){
+        vertx.sharedData().getAsyncMap(mapName, map ->
+                map.result().entries(item -> {
+                    item.result().forEach((name, nameClan) ->{
+                                if (ThreadLocalRandom.current().nextBoolean()){
+
+                                    _tempString = (String) name;
+                                    if(_tempString != null)
+                                        return;
+                                }
+                            }
+                    );
+                })
+        );
+        return _tempString;
     }
 
     private boolean sendToClan(String clan)
@@ -76,27 +93,10 @@ public class User extends AbstractVerticle {
                 _clan = clan;
                 vertx.cancelTimer(_timerId);
                 setPeriodicSendMessageToUsers();
+                createMS();
             }
         });
         return _clan == null ? false : true;
-    }
-
-    private String listenerClans(String mapName){
-        String[] clans = new String[1];
-        vertx.sharedData().getAsyncMap(mapName, map ->
-                map.result().entries(item -> {
-                    item.result().forEach((name, nameClan) ->{
-                                if (ThreadLocalRandom.current().nextBoolean() && clans[0] == null){
-                                    clans[0] = (String) name;
-                                    if(clans[0] != null)
-                                        return;
-                                    //sendToClan((String) name);
-                                }
-                            }
-                    );
-                })
-        );
-       return clans[0];
     }
 
     private boolean sendMessage(String to){
@@ -104,7 +104,7 @@ public class User extends AbstractVerticle {
             return false;
         final String[] res = new String[1];
         final DeliveryOptions options = new DeliveryOptions().setSendTimeout(1000);
-        vertx.eventBus().request(to, "Smth message from " + _name + " to " + to, options, reply -> {
+        vertx.eventBus().request(to,  _name , options, reply -> {
             if (reply.succeeded()) {
                 res[0] = to;
             }

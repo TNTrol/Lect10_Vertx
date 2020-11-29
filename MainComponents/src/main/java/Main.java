@@ -16,9 +16,9 @@ public class Main {
         );
 
         for(int i = 0; i < 3; i++) {
-            vertx.deployVerticle(new Admin("clan" + i, i), new DeploymentOptions().setWorker(true));
-            vertx.deployVerticle(new Moderator( i,"clan" + i), new DeploymentOptions().setWorker(true));
+            vertx.deployVerticle(new Admin(i,i+1, 1 + i * 2), new DeploymentOptions().setWorker(true));
+            vertx.deployVerticle(new Moderator(i), new DeploymentOptions().setWorker(true));
         }
-        vertx.deployVerticle(new Moderator( 5,"clan" + 1), new DeploymentOptions().setWorker(true));
+        vertx.deployVerticle(new Moderator(4), new DeploymentOptions().setWorker(true));
     }
 }
