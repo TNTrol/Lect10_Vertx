@@ -8,7 +8,7 @@ public class Main {
 
         final var factory = new User.Factory();
         vertx.registerVerticleFactory(factory);
-        final DeploymentOptions optionsMember = new DeploymentOptions().setWorker(true).setInstances(5);
+        final DeploymentOptions optionsMember = new DeploymentOptions().setWorker(true).setInstances(20);
         vertx.deployVerticle(
                 factory.prefix() + ':' + User.class.getName(),
                 optionsMember,
@@ -19,5 +19,6 @@ public class Main {
             vertx.deployVerticle(new Admin("clan" + i, i), new DeploymentOptions().setWorker(true));
             vertx.deployVerticle(new Moderator( i,"clan" + i), new DeploymentOptions().setWorker(true));
         }
+        vertx.deployVerticle(new Moderator( 5,"clan" + 1), new DeploymentOptions().setWorker(true));
     }
 }

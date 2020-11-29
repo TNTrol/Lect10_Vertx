@@ -9,10 +9,12 @@ import java.util.concurrent.ThreadLocalRandom;
 public class User extends AbstractVerticle {
     private String _name;
     private String _clan;
+    private long _timerId;
+    private long _timeIdAlive;
 
     private User(int n)
     {
-        _name = "user" + n;
+        _name = "User" + n;
     }
 
     @Override
@@ -20,54 +22,89 @@ public class User extends AbstractVerticle {
 
         vertx.eventBus().consumer(_name, event -> {
                         event.reply("Thanks!");
-                        System.out.println("Thanks");
+                        //System.out.println(event.body());
                 }
         );
 
-        long t = vertx.setPeriodic(5000, timer ->
-                {
-                    vertx.executeBlocking(event -> {if(_clan == null) {
-                        listenerClans();
-                    }
-                    else {
-                        sayAlive();
-                        listenerUsers();
-                    }}, event -> System.out.println(_name + "Use BLOKED CODe"));
+//        _timerId = vertx.setPeriodic(5000, timer ->
+//                {
+//                    vertx.executeBlocking(event -> {if(_clan == null) {
+//                        listenerClans();
+//                    }
+//                    else {
+//                        sayAlive();
+//                        listenerUsers();
+//                    }}, event -> {});
+//
+//                }
+//        );
+        setPeriodicSendMessageToClan();
+    }
 
+    private void setPeriodicSendMessageToClan()
+    {
+        _timerId = vertx.setPeriodic(5000, timer ->
+                {
+                    if(_clan == null)
+                        vertx.<String>executeBlocking(promise -> promise.complete(listenerClans("clans")), res ->sendToClan(res.result()));
+                }
+        );
+    }
+    private void setPeriodicSendMessageToUsers()
+    {
+        _timerId = vertx.setPeriodic(5000, timer ->
+                {
+                    //sayAlive();
+                    vertx.<String>executeBlocking(promise -> promise.complete(listenerClans(_clan + "Friends")), res ->sendMessage(res.result()));
+                }
+        );
+        _timeIdAlive = vertx.setPeriodic(2500, timer ->
+                {
+                    sayAlive();
                 }
         );
     }
 
     private boolean sendToClan(String clan)
     {
+        if(clan == null )
+            return false;
         final DeliveryOptions options = new DeliveryOptions().setSendTimeout(1000);
+        System.out.println(_name + " want to "+ clan);
         vertx.eventBus().request(clan, _name, options, reply -> {
             if (reply.succeeded()) {
                 _clan = clan;
-                System.out.println(_name + " in " + _clan);
+                vertx.cancelTimer(_timerId);
+                setPeriodicSendMessageToUsers();
             }
         });
         return _clan == null ? false : true;
     }
 
-    private void listenerClans(){
-        vertx.sharedData().getAsyncMap("clans", map ->
-                map.result().entries(cookies -> {
-                    cookies.result().forEach((name, nameClan) ->{
-                                if (ThreadLocalRandom.current().nextBoolean() && _clan == null){
-                                    String clan = (String) name;
-                                    sendToClan(clan);
+    private String listenerClans(String mapName){
+        String[] clans = new String[1];
+        vertx.sharedData().getAsyncMap(mapName, map ->
+                map.result().entries(item -> {
+                    item.result().forEach((name, nameClan) ->{
+                                if (ThreadLocalRandom.current().nextBoolean() && clans[0] == null){
+                                    clans[0] = (String) name;
+                                    if(clans[0] != null)
+                                        return;
+                                    //sendToClan((String) name);
                                 }
                             }
                     );
                 })
         );
+       return clans[0];
     }
 
     private boolean sendMessage(String to){
+        if(to == null || to.equals(_name))
+            return false;
         final String[] res = new String[1];
         final DeliveryOptions options = new DeliveryOptions().setSendTimeout(1000);
-        vertx.eventBus().request(to, "Smth message", options, reply -> {
+        vertx.eventBus().request(to, "Smth message from " + _name + " to " + to, options, reply -> {
             if (reply.succeeded()) {
                 res[0] = to;
             }
@@ -75,25 +112,10 @@ public class User extends AbstractVerticle {
         return res[0] == null ? false : true;
     }
 
-    private void listenerUsers()
-    {
-        vertx.sharedData().getAsyncMap(_clan + "Friends", map ->
-                map.result().entries(cookies -> {
-                    cookies.result().forEach((name, nameClan) ->{
-                                if (ThreadLocalRandom.current().nextBoolean() && !_name.equals(name)){
-                                    sendMessage((String) name);
-                                    return;
-                                }
-                            }
-                    );
-                })
-        );
-    }
-
     private void sayAlive(){
         vertx.sharedData().getAsyncMap(_clan + "Friends", map ->
                 map.result().put(_name, _name, completion ->
-                        System.out.println("")
+                        {}
                 ));
     }
 
